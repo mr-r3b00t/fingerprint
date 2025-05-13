@@ -6,4 +6,4 @@ https://mr-r3b00t.github.io/fingerprint/index.html
 
 https://mr-r3b00t.github.io/fingerprint/training.html
 
-https://mr-r3b00t.github.io/fingerprint/Browser Fingerprinting Presentatio.html
+(https://mr-r3b00t.github.io/fingerprint/Browser Fingerprinting Presentatio.html)
