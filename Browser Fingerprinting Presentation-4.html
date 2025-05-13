@@ -1,0 +1,1023 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Browser Fingerprinting Presentation</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: 'Roboto', Arial, sans-serif;
+            background: #0f2027;
+            color: #333;
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+        }
+        .slideshow-container {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            display: flex;
+        }
+        .slides-area {
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+        }
+        .slide {
+            display: none;
+            height: 100vh;
+            padding: 20px;
+            background: #fff;
+            transition: transform 0.5s ease-in-out;
+            position: absolute;
+            width: 100%;
+            transform: translateX(100%);
+            overflow-x: hidden;
+        }
+        .slide-content {
+            max-width: 800px;
+            margin: 0 auto;
+            width: 100%;
+        }
+        .slide.active {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            transform: translateX(0);
+        }
+        .slide.exit {
+            transform: translateX(-100%);
+        }
+        h1 {
+            font-size: 2.2em;
+            color: #1a3c5e;
+            margin-bottom: 20px;
+            text-align: center;
+            word-wrap: break-word;
+        }
+        h2 {
+            font-size: 1.6em;
+            color: #2e7d32;
+            margin-bottom: 15px;
+        }
+        p, li {
+            font-size: 1.1em;
+            line-height: 1.5;
+            color: #37474f;
+            word-wrap: break-word;
+        }
+        ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        li {
+            margin-bottom: 8px;
+        }
+        code {
+            background: #eceff1;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-family: 'Fira Code', monospace;
+            color: #d81b60;
+            word-wrap: break-word;
+        }
+        .narration {
+            background: #f5f6f5;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            font-size: 1em;
+            color: #455a64;
+            border-left: 4px solid #2e7d32;
+        }
+        .narration h3 {
+            color: #1a3c5e;
+            margin-bottom: 10px;
+        }
+        .sidebar {
+            width: 200px;
+            background: #263238;
+            padding: 20px 10px;
+            overflow-y: auto;
+            height: 100vh;
+            flex-shrink: 0;
+        }
+        .thumbnail {
+            background: #37474f;
+            color: #fff;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: background 0.3s;
+            word-wrap: break-word;
+        }
+        .thumbnail:hover, .thumbnail.active {
+            background: #4caf50;
+        }
+        .nav-buttons {
+            position: absolute;
+            top: 50%;
+            left: 10px;
+            right: 10px;
+            display: flex;
+            justify-content: space-between;
+            transform: translateY(-50%);
+            z-index: 10;
+        }
+        .nav-button {
+            background: rgba(0, 0, 0, 0.5);
+            color: white;
+            border: none;
+            padding: 15px;
+            cursor: pointer;
+            font-size: 1.5em;
+            transition: background 0.3s;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .nav-button:hover {
+            background: #4caf50;
+        }
+        .nav-button:disabled {
+            background: rgba(0, 0, 0, 0.2);
+            cursor: not-allowed;
+        }
+        .intro-slide {
+            background: linear-gradient(45deg, #2e7d32, #81c784);
+            color: white;
+            text-align: center;
+            align-items: center;
+        }
+        .intro-slide h1, .intro-slide p, .intro-slide .narration {
+            color: white;
+        }
+        .intro-slide .narration {
+            background: rgba(255, 255, 255, 0.1);
+            border-left: 4px solid #fff;
+        }
+        .progress {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #fff;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 5px 10px;
+            border-radius: 10px;
+            font-size: 0.9em;
+            z-index: 10;
+        }
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 150px;
+            }
+            .thumbnail {
+                font-size: 0.8em;
+                padding: 8px;
+            }
+            .slide {
+                padding: 15px;
+            }
+            .slide-content {
+                max-width: 90%;
+            }
+            h1 {
+                font-size: 1.8em;
+            }
+            h2 {
+                font-size: 1.4em;
+            }
+            p, li, .narration {
+                font-size: 1em;
+            }
+            .nav-button {
+                width: 40px;
+                height: 40px;
+                font-size: 1.2em;
+            }
+        }
+        @media (max-width: 600px) {
+            .sidebar {
+                display: none;
+            }
+            .slides-area {
+                width: 100%;
+            }
+            .slide-content {
+                max-width: 95%;
+            }
+            .nav-buttons {
+                left: 5px;
+                right: 5px;
+            }
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&family=Fira+Code&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="slideshow-container">
+        <div class="sidebar">
+            <div class="thumbnail" data-slide="0">Introduction</div>
+            <div class="thumbnail" data-slide="1">What is Fingerprinting?</div>
+            <div class="thumbnail" data-slide="2">Fingerprinting Process</div>
+            <div class="thumbnail" data-slide="3">Timestamp</div>
+            <div class="thumbnail" data-slide="4">User Agent</div>
+            <div class="thumbnail" data-slide="5">App Version</div>
+            <div class="thumbnail" data-slide="6">Platform</div>
+            <div class="thumbnail" data-slide="7">Language</div>
+            <div class="thumbnail" data-slide="8">Languages</div>
+            <div class="thumbnail" data-slide="9">Vendor</div>
+            <div class="thumbnail" data-slide="10">Product</div>
+            <div class="thumbnail" data-slide="11">Product Sub</div>
+            <div class="thumbnail" data-slide="12">Cookie Enabled</div>
+            <div class="thumbnail" data-slide="13">Do Not Track</div>
+            <div class="thumbnail" data-slide="14">Max Touch Points</div>
+            <div class="thumbnail" data-slide="15">Screen Width/Height</div>
+            <div class="thumbnail" data-slide="16">Available Width/Height</div>
+            <div class="thumbnail" data-slide="17">Color Depth</div>
+            <div class="thumbnail" data-slide="18">Pixel Depth</div>
+            <div class="thumbnail" data-slide="19">Orientation</div>
+            <div class="thumbnail" data-slide="20">Inner Width/Height</div>
+            <div class="thumbnail" data-slide="21">Outer Width/Height</div>
+            <div class="thumbnail" data-slide="22">Device Pixel Ratio</div>
+            <div class="thumbnail" data-slide="23">Timezone Offset</div>
+            <div class="thumbnail" data-slide="24">Timezone</div>
+            <div class="thumbnail" data-slide="25">Plugins</div>
+            <div class="thumbnail" data-slide="26">Mime Types</div>
+            <div class="thumbnail" data-slide="27">Fonts</div>
+            <div class="thumbnail" data-slide="28">Canvas Fingerprint</div>
+            <div class="thumbnail" data-slide="29">WebGL Vendor/Renderer</div>
+            <div class="thumbnail" data-slide="30">WebGL Unmasked</div>
+            <div class="thumbnail" data-slide="31">Audio Fingerprint</div>
+            <div class="thumbnail" data-slide="32">Battery Info</div>
+            <div class="thumbnail" data-slide="33">Network Info</div>
+            <div class="thumbnail" data-slide="34">Hardware Concurrency</div>
+            <div class="thumbnail" data-slide="35">Device Memory</div>
+            <div class="thumbnail" data-slide="36">Permissions</div>
+            <div class="thumbnail" data-slide="37">Storage Quota/Usage</div>
+            <div class="thumbnail" data-slide="38">WebRTC Enabled</div>
+            <div class="thumbnail" data-slide="39">Conclusion</div>
+        </div>
+        <div class="slides-area">
+            <!-- Slide 0: Introduction -->
+            <div class="slide intro-slide">
+                <div class="slide-content">
+                    <h1>Browser Fingerprinting</h1>
+                    <p>Discover how browsers collect unique data to create a digital fingerprint for tracking and identification.</p>
+                    <div class="narration">
+                        <h3>Narration</h3>
+                        <p><strong>Context:</strong> Browser fingerprinting is a growing concern in the digital age, where websites can track users without their explicit consent. This presentation introduces the concept and its mechanics.</p>
+                        <p><strong>Information:</strong> We’ll explore how browsers gather data from various sources, like hardware and software settings, to create a unique identifier. This process is invisible to most users but has significant privacy implications.</p>
+                        <p><strong>Key Learning Point:</strong> Browser fingerprinting enables tracking without cookies, making it a powerful and stealthy tool for identifying users across the web.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 1: What is Browser Fingerprinting? -->
+            <div class="slide">
+                <div class="slide-content">
+                    <h1>What is Browser Fingerprinting?</h1>
+                    <p>A technique to identify users by collecting unique browser and device characteristics, creating a distinctive "fingerprint" without cookies.</p>
+                    <ul>
+                        <li>Uses APIs like <code>navigator</code>, <code>screen</code>, and <code>window</code>.</li>
+                        <li>Generates a hash for comparison.</li>
+                        <li>Downloadable as JSON for analysis.</li>
+                    </ul>
+                    <div class="narration">
+                        <h3>Narration</h3>
+                        <p><strong>Context:</strong> Unlike cookies, which users can clear, fingerprinting relies on inherent device and browser traits that are harder to modify.</p>
+                        <p><strong>Information:</strong> The technique collects data through JavaScript APIs, such as <code>navigator</code> for browser details and <code>screen</code> for display settings. A hash is generated to summarize the fingerprint, and the data can be exported as JSON for further study.</p>
+                        <p><strong>Key Learning Point:</strong> Fingerprinting creates a unique user profile by combining multiple browser and device attributes, bypassing traditional tracking defenses.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 2: Fingerprinting Process -->
+            <div class="slide">
+                <div class="slide-content">
+                    <h1>Fingerprinting Process</h1>
+                    <p>Collects attributes in two modes:</p>
+                    <ul>
+                        <li><strong>With Timestamp:</strong> Includes <code>timestamp</code> (<code>gatherFingerprint()</code>).</li>
+                        <li><strong>No Timestamp:</strong> Excludes <code>timestamp</code> for consistent hashing (<code>gatherFingerprintNoTimestamp()</code>).</li>
+                        <li>Hashes data with <code>simpleHash()</code>.</li>
+                        <li>Handles errors, displays or downloads JSON.</li>
+                    </ul>
+                    <div class="narration">
+                        <h3>Narration</h3>
+                        <p><strong>Context:</strong> The fingerprinting tool is designed to be robust, offering flexibility in how data is collected and presented.</p>
+                        <p><strong>Information:</strong> Two functions collect attributes: one includes a timestamp for temporal context, while the other excludes it for stable hashes. Errors are managed with try-catch blocks, ensuring inaccessible data is flagged. The resulting data is hashed for quick comparison and can be viewed or downloaded.</p>
+                        <p><strong>Key Learning Point:</strong> The fingerprinting process is systematic, error-resistant, and adaptable, allowing consistent tracking with or without timestamps.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 3: Timestamp -->
+            <div class="slide">
+                <div class="slide-content">
+                    <h1>Timestamp</h1>
+                    <h2>Records generation time</h2>
+                    <p><strong>Process:</strong> Uses <code>new Date().toISOString()</code>.</p>
+                    <p><strong>Purpose:</strong> Adds temporal context, but affects hash consistency.</p>
+                    <p><strong>Note:</strong> Only in "With Timestamp" mode.</p>
+                    <div class="narration">
+                        <h3>Narration</h3>
+                        <p><strong>Context:</strong> Timestamps are common in data collection but pose challenges for fingerprinting due to their dynamic nature.</p>
+                        <p><strong>Information:</strong> The timestamp is captured using <code>new Date().toISOString()</code>, providing a precise record of when the fingerprint was generated. However, its inclusion changes the hash each time, making the "No Timestamp" mode preferable for consistent tracking.</p>
+                        <p><strong>Key Learning Point:</strong> Timestamps provide useful context but reduce fingerprint stability, requiring a choice between temporal accuracy and hash consistency.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 4: User Agent -->
+            <div class="slide">
+                <div class="slide-content">
+                    <h1>User Agent</h1>
+                    <h2>Browser and OS identifier</h2>
+                    <p><strong>Process:</strong> Accessed via <code>navigator.userAgent</code>.</p>
+                    <p><strong>Purpose:</strong> Distinguishes browsers and OS (e.g., Chrome on Windows).</p>
+                    <div class="narration">
+                        <h3>Narration</h3>
+                        <p><strong>Context:</strong> The user agent is one of the most accessible pieces of browser information, often used in web development and tracking.</p>
+                        <p><strong>Information:</strong> Retrieved via <code>navigator.userAgent</code>, it reveals the browser type, version, and operating system. For example, it might show "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0". This helps differentiate devices and browsers.</p>
+                        <p><strong>Key Learning Point:</strong> The user agent is a foundational fingerprinting attribute, providing broad but essential identification details.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 5: App Version -->
+            <div class="slide">
+                <div class="slide-content">
+                    <h1>App Version</h1>
+                    <h2>Browser version</h2>
+                    <p><strong>Process:</strong> Obtained from <code>navigator.appVersion</code>.</p>
+                    <p><strong>Purpose:</strong> Provides versioning, often overlaps with <code>userAgent</code>.</p>
+                    <div class="narration">
+                        <h3>Narration</h3>
+                        <p><strong>Context:</strong> Browser versioning is critical for compatibility but also aids in fingerprinting.</p>
+                        <p><strong>Information:</strong> <code>navigator.appVersion</code> provides version details, such as "5.0 (Windows NT 10.0)". It’s often redundant with <code>userAgent</code> but included for completeness, as some browsers report unique values.</p>
+                        <p><strong>Key Learning Point:</strong> App version adds minor specificity to fingerprinting, though its overlap with user agent limits its standalone value.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 6: Platform -->
+            <div class="slide">
+                <div class="slide-content">
+                    <h1>Platform</h1>
+                    <h2>Operating system</h2>
+                    <p><strong>Process:</strong> Retrieved using <code>navigator.platform</code>.</p>
+                    <p><strong>Purpose:</strong> Identifies OS (e.g., <code>Win32</code>, <code>MacIntel</code>).</p>
+                    <div class="narration">
+                        <h3>Narration</h3>
+                        <p><strong>Context:</strong> The operating system is a key differentiator in device identification.</p>
+                        <p><strong>Information:</strong> <code>navigator.platform</code> returns values like <code>Win32</code> or <code>Linux x86_64</code>, indicating the OS or hardware platform. It’s a reliable attribute for distinguishing between Windows, macOS, Linux, and others.</p>
+                        <p><strong>Key Learning Point:</strong> Platform provides a high-level but crucial identifier for the user’s operating environment.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 7: Language -->
+            <div class="slide">
+                <div class="slide-content">
+                    <h1>Language</h1>
+                    <h2>Primary browser language</h2>
+                    <p><strong>Process:</strong> Uses <code>navigator.language</code>.</p>
+                    <p><strong>Purpose:</strong> Indicates preferred language (e.g., <code>en-US</code>).</p>
+                    <div class="narration">
+                        <h3>Narration</h3>
+                        <p><strong>Context:</strong> Language settings reflect user preferences and regional differences.</p>
+                        <p><strong>Information:</strong> <code>navigator.language</code> returns the browser’s primary language, such as <code>en-US</code> or <code>fr-FR</code>. This attribute helps narrow down the user’s likely location or cultural context.</p>
+                        <p><strong>Key Learning Point:</strong> Language is a simple yet effective attribute for adding uniqueness to a fingerprint.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 8: Languages -->
+            <div class="slide">
+                <div class="slide-content">
+                    <h1>Languages</h1>
+                    <h2>All supported languages</h2>
+                    <p><strong>Process:</strong> Gathered from <code>navigator.languages</code>.</p>
+                    <p><strong>Purpose:</strong> Detailed language profile.</p>
+                    <div class="narration">
+                        <h3>Narration</h3>
+                        <p><strong>Context:</strong> Modern browsers allow users to set multiple preferred languages, enhancing fingerprint specificity.</p>
+                        <p><strong>Information:</strong> <code>navigator.languages</code> returns an array of all supported languages, like <code>["en-US", "en", "fr"]</code>. This provides a richer profile than the primary language alone, reflecting user preferences.</p>
+                        <p><strong>Key Learning Point:</strong> The languages attribute adds depth to fingerprinting by capturing a user’s full language configuration.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 9: Vendor -->
+            <div class="slide">
+                <div class="slide-content">
+                    <h1>Vendor</h1>
+                    <h2>Browser vendor</h2>
+                    <p><strong>Process:</strong> Accessed via <code>navigator.vendor</code>.</p>
+                    <p><strong>Purpose:</strong> Identifies origin (e.g., <code>Google Inc.</code>).</p>
+                    <div class="narration">
+                        <h3>Narration</h3>
+                        <p><strong>Context:</strong> The browser’s vendor can reveal its development origin, aiding in browser differentiation.</p>
+                        <p><strong>Information:</strong> <code>navigator.vendor</code> returns values like <code>Google Inc.</code> for Chrome or <code>Apple Computer, Inc.</code> for Safari. It’s a straightforward attribute for identifying the browser’s maker.</p>
+                        <p><strong>Key Learning Point:</strong> Vendor helps distinguish browsers by their origin, contributing to the fingerprint’s uniqueness.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 10: Product -->
+            <div class="slide">
+                <div class="slide-content">
+                    <h1>Product</h1>
+                    <h2>Browser product name</h2>
+                    <p><strong>Process:</strong> Retrieved from <code>navigator.product</code>.</p>
+                    <p><strong>Purpose:</strong> Often <code>Gecko</code>, limited uniqueness.</p>
+                    <div class="narration">
+                        <h3>Narration</h3>
+                        <p><strong>Context:</strong> Some browser attributes are legacy but still collected for completeness.</p>
+                        <p><strong>Information:</strong> <code>navigator.product</code> typically returns <code>Gecko</code> for most browsers, a remnant of older browser engines. Its value is generic, reducing its fingerprinting utility.</p>
+                        <p><strong>Key Learning Point:</strong> Product is a low-value attribute due to its lack of variability but is included for historical compatibility.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 11: Product Sub -->
+            <div class="slide">
+                <div class="slide-content">
+                    <h1>Product Sub</h1>
+                    <h2>Sub-product version</h2>
+                    <p><strong>Process:</strong> Obtained from <code>navigator.productSub</code>.</p>
+                    <p><strong>Purpose:</strong> Minor versioning, often static.</p>
+                    <div class="narration">
+                        <h3>Narration</h3>
+                        <p><strong>Context:</strong> Sub-product versioning is another legacy attribute with limited modern use.</p>
+                        <p><strong>Information:</strong> <code>navigator.productSub</code> provides a sub-version, like <code>20030107</code>, but it’s often static or browser-specific. It adds little to fingerprinting due to its consistency across users.</p>
+                        <p><strong>Key Learning Point:</strong> Product Sub is a minor attribute with negligible impact on fingerprint uniqueness.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 12: Cookie Enabled -->
+            <div class="slide">
+                <div class="slide-content">
+                    <h1>Cookie Enabled</h1>
+                    <h2>Cookie status</h2>
+                    <p><strong>Process:</strong> Checked via <code>navigator.cookieEnabled</code>.</p>
+                    <p><strong>Purpose:</strong> Reflects tracking configuration.</p>
+                    <div class="narration">
+                        <h3>Narration</h3>
+                        <p><strong>Context:</strong> Cookies are a traditional tracking method, and their status can influence fingerprinting strategies.</p>
+                        <p><strong>Information:</strong> <code>navigator.cookieEnabled</code> returns <code>true</code> or <code>false</code>, indicating whether cookies are enabled. This reflects user or browser settings that affect tracking capabilities.</p>
+                        <p><strong>Key Learning Point:</strong> Cookie status provides insight into a user’s tracking permissions, complementing fingerprinting data.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 13: Do Not Track -->
+            <div class="slide">
+                <div class="slide-content">
+                    <h1>Do Not Track</h1>
+                    <h2>Privacy preference</h2>
+                    <p><strong>Process:</strong> Uses <code>navigator.doNotTrack</code>.</p>
+                    <p><strong>Purpose:</strong> Indicates Do Not Track setting.</p>
+                    <div class="narration">
+                        <h3>Narration</h3>
+                        <p><strong>Context:</strong> Do Not Track is a user-configurable setting that signals privacy preferences.</p>
+                        <p><strong>Information:</strong> <code>navigator.doNotTrack</code> returns <code>1</code> (enabled), <code>0</code> (disabled), or <code>Not set</code>. It shows whether the user has opted for reduced tracking, though compliance varies.</p>
+                        <p><strong>Key Learning Point:</strong> Do Not Track reflects user privacy choices, adding a behavioral dimension to the fingerprint.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 14: Max Touch Points -->
+            <div class="slide">
+                <div class="slide-content">
+                    <h1>Max Touch Points</h1>
+                    <h2>Touch input support</h2>
+                    <p><strong>Process:</strong> Retrieved from <code>navigator.maxTouchPoints</code>.</p>
+                    <p><strong>Purpose:</strong> Identifies touch devices.</p>
+                    <div class="narration">
+                        <h3>Narration</h3>
+                        <p><strong>Context:</strong> Touchscreens are common in mobile devices, making touch support a useful identifier.</p>
+                        <p><strong>Information:</strong> <code>navigator.maxTouchPoints</code> indicates the number of simultaneous touch points, like <code>0</code> for desktops or <code>5</code> for smartphones. It helps distinguish device types.</p>
+                        <p><strong>Key Learning Point:</strong> Max touch points effectively separates touch-enabled devices from traditional ones in fingerprinting.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 15: Screen Width/Height -->
+            <div class="slide">
+                <div class="slide-content">
+                    <h1>Screen Width/Height</h1>
+                    <h2>Screen resolution</h2>
+                    <p><strong>Process:</strong> Accessed via <code>screen.width</code>, <code>screen.height</code>.</p>
+                    <p><strong>Purpose:</strong> Key device identifier.</p>
+                    <div class="narration">
+                        <h3>Narration</h3>
+                        <p><strong>Context:</strong> Screen resolution is a fundamental attribute that varies widely across devices.</p>
+                        <p><strong>Information:</strong> <code>screen.width</code> and <code>screen.height</code> return the total screen resolution, such as <code>1920x1080</code>. This is a primary identifier due to its variability across monitors and devices.</p>
+                        <p><strong>Key Learning Point:</strong> Screen resolution is a cornerstone of fingerprinting, providing a reliable device-specific attribute.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 16: Available Width/Height -->
+            <div class="slide">
+                <div class="slide-content">
+                    <h1>Available Width/Height</h1>
+                    <h2>Usable screen space</h2>
+                    <p><strong>Process:</strong> Obtained from <code>screen.availWidth</code>, <code>screen.availHeight</code>.</p>
+                    <p><strong>Purpose:</strong> Excludes OS elements.</p>
+                    <div class="narration">
+                        <h3>Narration</h3>
+                        <p><strong>Context:</strong> Not all screen space is usable due to OS interfaces like taskbars.</p>
+                        <p><strong>Information:</strong> <code>screen.availWidth</code> and <code>screen.availHeight</code> report the screen space available to applications, excluding elements like the Windows taskbar or macOS dock. This varies by OS and configuration.</p>
+                        <p><strong>Key Learning Point:</strong> Available screen dimensions refine resolution data by accounting for OS-specific constraints.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 17: Color Depth -->
+            <div class="slide">
+                <div class="slide-content">
+                    <h1>Color Depth</h1>
+                    <h2>Color bits</h2>
+                    <p><strong>Process:</strong> Retrieved from <code>screen.colorDepth</code>.</p>
+                    <p><strong>Purpose:</strong> Indicates display quality.</p>
+                    <div class="narration">
+                        <h3>Narration</h3>
+                        <p><strong>Context:</strong> Display capabilities can vary, especially in older or specialized devices.</p>
+                        <p><strong>Information:</strong> <code>screen.colorDepth</code> returns the number of bits used for color, typically <code>24</code> for modern displays. It indicates the quality of the screen’s color representation.</p>
+                        <p><strong>Key Learning Point:</strong> Color depth adds a subtle but useful dimension to device identification.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 18: Pixel Depth -->
+            <div class="slide">
+                <div class="slide-content">
+                    <h1>Pixel Depth</h1>
+                    <h2>Screen pixel depth</h2>
+                    <p><strong>Process:</strong> Obtained from <code>screen.pixelDepth</code>.</p>
+                    <p><strong>Purpose:</strong> Similar to <code>colorDepth</code>.</p>
+                    <div class="narration">
+                        <h3>Narration</h3>
+                        <p><strong>Context:</strong> Pixel depth is closely related to color depth, often identical in modern systems.</p>
+                        <p><strong>Information:</strong> <code>screen.pixelDepth</code> measures the pixel depth, usually matching <code>colorDepth</code> (e.g., <code>24</code>). It’s included for compatibility but rarely adds unique information.</p>
+                        <p><strong>Key Learning Point:</strong> Pixel depth is a redundant attribute in most cases, with limited fingerprinting value.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 19: Orientation -->
+            <div class="slide">
+                <div class="slide-content">
+                    <h1>Orientation</h1>
+                    <h2>Screen orientation</h2>
+                    <p><strong>Process:</strong> Accessed via <code>screen.orientation.type</code>.</p>
+                    <p><strong>Purpose:</strong> Indicates device orientation.</p>
+                    <div class="narration">
+                        <h3>Narration</h3>
+                        <p><strong>Context:</strong> Mobile devices frequently change orientation, making this a dynamic attribute.</p>
+                        <p><strong>Information:</strong> <code>screen.orientation.type</code> returns values like <code>portrait-primary</code> or <code>landscape-primary</code>. It’s particularly useful for identifying mobile device usage patterns.</p>
+                        <p><strong>Key Learning Point:</strong> Orientation enhances fingerprinting for mobile devices by capturing how the device is held.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 20: Inner Width/Height -->
+            <div class="slide">
+                <div class="slide-content">
+                    <h1>Inner Width/Height</h1>
+                    <h2>Viewport size</h2>
+                    <p><strong>Process:</strong> Retrieved from <code>window.innerWidth</code>, <code>window.innerHeight</code>.</p>
+                    <p><strong>Purpose:</strong> Browser content area size.</p>
+                    <div class="narration">
+                        <h3>Narration</h3>
+                        <p><strong>Context:</strong> The browser’s viewport size depends on how the user has sized their window.</p>
+                        <p><strong>Information:</strong> <code>window.innerWidth</code> and <code>window.innerHeight</code> measure the browser’s content area, which can vary based on window size or full-screen mode. This is less stable than screen size but still useful.</p>
+                        <p><strong>Key Learning Point:</strong> Inner dimensions reflect user behavior in browser usage, adding a dynamic element to fingerprints.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 21: Outer Width/Height -->
+            <div class="slide">
+                <div class="slide-content">
+                    <h1>Outer Width/Height</h1>
+                    <h2>Full window size</h2>
+                    <p><strong>Process:</strong> Obtained from <code>window.outerWidth</code>, <code>window.outerHeight</code>.</p>
+                    <p><strong>Purpose:</strong> Includes toolbars.</p>
+                    <div class="narration">
+                        <h3>Narration</h3>
+                        <p><strong>Context:</strong> The full browser window includes UI elements like toolbars, which vary by browser.</p>
+                        <p><strong>Information:</strong> <code>window.outerWidth</code> and <code>window.outerHeight</code> capture the entire window size, including browser chrome. This complements inner dimensions by showing the complete window context.</p>
+                        <p><strong>Key Learning Point:</strong> Outer dimensions provide additional context about browser configuration and user preferences.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 22: Device Pixel Ratio -->
+            <div class="slide">
+                <div class="slide-content">
+                    <h1>Device Pixel Ratio</h1>
+                    <h2>Pixel scaling</h2>
+                    <p><strong>Process:</strong> Accessed via <code>window.devicePixelRatio</code>.</p>
+                    <p><strong>Purpose:</strong> Indicates display scaling.</p>
+                    <div class="narration">
+                        <h3>Narration</h3>
+                        <p><strong>Context:</strong> High-DPI displays, like Retina, use pixel scaling to enhance visual clarity.</p>
+                        <p><strong>Information:</strong> <code>window.devicePixelRatio</code> returns the ratio of physical to CSS pixels, such as <code>2</code> for Retina displays. It’s a strong indicator of modern, high-resolution screens.</p>
+                        <p><strong>Key Learning Point:</strong> Device pixel ratio identifies high-DPI devices, enhancing fingerprint precision.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 23: Timezone Offset -->
+            <div class="slide">
+                <div class="slide-content">
+                    <h1>Timezone Offset</h1>
+                    <h2>UTC offset</h2>
+                    <p><strong>Process:</strong> Retrieved from <code>new Date().getTimezoneOffset()</code>.</p>
+                    <p><strong>Purpose:</strong> Identifies region.</p>
+                    <div class="narration">
+                        <h3>Narration</h3>
+                        <p><strong>Context:</strong> Timezone settings can pinpoint a user’s geographic region.</p>
+                        <p><strong>Information:</strong> <code>new Date().getTimezoneOffset()</code> returns the offset from UTC in minutes, like <code>-240</code> for Eastern Daylight Time. It’s a reliable geographic marker.</p>
+                        <p><strong>Key Learning Point:</strong> Timezone offset narrows down a user’s location, adding a critical fingerprinting attribute.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 24: Timezone -->
+            <div class="slide">
+                <div class="slide-content">
+                    <h1>Timezone</h1>
+                    <h2>Timezone name</h2>
+                    <p><strong>Process:</strong> Obtained from <code>Intl.DateTimeFormat().resolvedOptions().timeZone</code>.</p>
+                    <p><strong>Purpose:</strong> Precise location identifier.</p>
+                    <div class="narration">
+                        <h3>Narration</h3>
+                        <p><strong>Context:</strong> Specific timezone names provide more granularity than offsets alone.</p>
+                        <p><strong>Information:</strong> <code>Intl.DateTimeFormat().resolvedOptions().timeZone</code> returns names like <code>America/New_York</code>. This is more precise than offset, as multiple regions may share the same offset.</p>
+                        <p><strong>Key Learning Point:</strong> Timezone names enhance location-based fingerprinting with high specificity.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 25: Plugins -->
+            <div class="slide">
+                <div class="slide-content">
+                    <h1>Plugins</h1>
+                    <h2>Installed plugins</h2>
+                    <p><strong>Process:</strong> Collected from <code>navigator.plugins</code>.</p>
+                    <p><strong>Purpose:</strong> Unique due to plugin variations.</p>
+                    <div class="narration">
+                        <h3>Narration</h3>
+                        <p><strong>Context:</strong> Browser plugins, though less common today, were historically significant for fingerprinting.</p>
+                        <p><strong>Information:</strong> <code>navigator.plugins</code> lists installed plugins, including name, description, filename, and version. The combination of plugins is highly unique, as users install different sets.</p>
+                        <p><strong>Key Learning Point:</strong> Plugins are a powerful fingerprinting attribute due to their variability across users.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 26: Mime Types -->
+            <div class="slide">
+                <div class="slide-content">
+                    <h1>Mime Types</h1>
+                    <h2>Supported media formats</h2>
+                    <p><strong>Process:</strong> Gathered from <code>navigator.mimeTypes</code>.</p>
+                    <p><strong>Purpose:</strong> Tied to plugins and browser.</p>
+                    <div class="narration">
+                        <h3>Narration</h3>
+                        <p><strong>Context:</strong> Mime types indicate the media formats a browser can handle, often linked to plugins.</p>
+                        <p><strong>Information:</strong> <code>navigator.mimeTypes</code> returns a list of supported types, like <code>application/pdf</code>. This reflects browser capabilities and installed plugins, adding uniqueness.</p>
+                        <p><strong>Key Learning Point:</strong> Mime types enhance fingerprinting by detailing media support, complementing plugin data.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 27: Fonts -->
+            <div class="slide">
+                <div class="slide-content">
+                    <h1>Fonts</h1>
+                    <h2>Installed fonts</h2>
+                    <p><strong>Process:</strong> Canvas measures text width for font list.</p>
+                    <p><strong>Purpose:</strong> Unique due to font variations.</p>
+                    <div class="narration">
+                        <h3>Narration</h3>
+                        <p><strong>Context:</strong> Fonts installed on a device vary widely, making them a prime fingerprinting target.</p>
+                        <p><strong>Information:</strong> A canvas element measures text width for a predefined font list, comparing against a monospace baseline. Detected fonts, like <code>Arial, Verdana</code>, are unique to the user’s system.</p>
+                        <p><strong>Key Learning Point:</strong> Fonts are highly effective for fingerprinting due to their system-specific combinations.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 28: Canvas Fingerprint -->
+            <div class="slide">
+                <div class="slide-content">
+                    <h1>Canvas Fingerprint</h1>
+                    <h2>Canvas rendering</h2>
+                    <p><strong>Process:</strong> Renders shapes, converts to <code>canvas.toDataURL()</code>.</p>
+                    <p><strong>Purpose:</strong> Exploits GPU differences.</p>
+                    <div class="narration">
+                        <h3>Narration</h3>
+                        <p><strong>Context:</strong> Canvas rendering varies subtly across devices due to hardware and drivers.</p>
+                        <p><strong>Information:</strong> A canvas draws text and shapes with specific styles, then converts the result to a data URL via <code>canvas.toDataURL()</code>. Differences in GPU rendering create a unique signature.</p>
+                        <p><strong>Key Learning Point:</strong> Canvas fingerprinting leverages hardware-level differences for precise device identification.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 29: WebGL Vendor/Renderer -->
+            <div class="slide">
+                <div class="slide-content">
+                    <h1>WebGL Vendor/Renderer</h1>
+                    <h2>Graphics hardware</h2>
+                    <p><strong>Process:</strong> Uses WebGL to retrieve <code>VENDOR</code>, <code>RENDERER</code>.</p>
+                    <p><strong>Purpose:</strong> Identifies GPU and drivers.</p>
+                    <div class="narration">
+                        <h3>Narration</h3>
+                        <p><strong>Context:</strong> WebGL exposes detailed graphics hardware information, critical for fingerprinting.</p>
+                        <p><strong>Information:</strong> A WebGL context retrieves <code>VENDOR</code> (e.g., <code>NVIDIA</code>), <code>RENDERER</code> (e.g., <code>GeForce RTX 3080</code>), and <code>VERSION</code>. These are specific to the user’s GPU and drivers.</p>
+                        <p><strong>Key Learning Point:</strong> WebGL attributes provide hardware-level specificity, making them highly valuable for fingerprinting.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 30: WebGL Unmasked -->
+            <div class="slide">
+                <div class="slide-content">
+                    <h1>WebGL Unmasked</h1>
+                    <h2>Unmasked GPU details</h2>
+                    <p><strong>Process:</strong> Uses <code>WEBGL_debug_renderer_info</code>.</p>
+                    <p><strong>Purpose:</strong> Specific hardware details.</p>
+                    <div class="narration">
+                        <h3>Narration</h3>
+                        <p><strong>Context:</strong> Unmasked WebGL data bypasses browser generalizations for precise hardware identification.</p>
+                        <p><strong>Information:</strong> The <code>WEBGL_debug_renderer_info</code> extension provides unmasked <code>VENDOR</code> and <code>RENDERER</code> values, revealing exact GPU details that standard WebGL may obscure.</p>
+                        <p><strong>Key Learning Point:</strong> Unmasked WebGL data enhances fingerprinting accuracy by exposing raw hardware information.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 31: Audio Fingerprint -->
+            <div class="slide">
+                <div class="slide-content">
+                    <h1>Audio Fingerprint</h1>
+                    <h2>Audio signature</h2>
+                    <p><strong>Process:</strong> Analyzes 440Hz sine wave via <code>AnalyserNode</code>.</p>
+                    <p><strong>Purpose:</strong> Captures audio hardware differences.</p>
+                    <div class="narration">
+                        <h3>Narration</h3>
+                        <p><strong>Context:</strong> Audio processing varies across devices, offering a novel fingerprinting method.</p>
+                        <p><strong>Information:</strong> An <code>AudioContext</code> generates a 440Hz sine wave, and an <code>AnalyserNode</code> extracts frequency data. The resulting signature reflects audio hardware and driver differences.</p>
+                        <p><strong>Key Learning Point:</strong> Audio fingerprinting uses subtle audio processing variations to create a unique device identifier.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 32: Battery Info -->
+            <div class="slide">
+                <div class="slide-content">
+                    <h1>Battery Info</h1>
+                    <h2>Battery status</h2>
+                    <p><strong>Process:</strong> Uses <code>navigator.getBattery()</code>.</p>
+                    <p><strong>Purpose:</strong> Mobile device identifier.</p>
+                    <div class="narration">
+                        <h3>Narration</h3>
+                        <p><strong>Context:</strong> Battery information is primarily relevant for mobile devices but is less available in modern browsers.</p>
+                        <p><strong>Information:</strong> <code>navigator.getBattery()</code> retrieves level (e.g., <code>75%</code>), charging status, and estimated charge/discharge times. Its use is declining due to privacy concerns.</p>
+                        <p><strong>Key Learning Point:</strong> Battery info, while useful for mobile fingerprinting, is becoming less accessible due to privacy restrictions.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 33: Network Info -->
+            <div class="slide">
+                <div class="slide-content">
+                    <h1>Network Info</h1>
+                    <h2>Connection details</h2>
+                    <p><strong>Process:</strong> Accessed via <code>navigator.connection</code>.</p>
+                    <p><strong>Purpose:</strong> Indicates network environment.</p>
+                    <div class="narration">
+                        <h3>Narration</h3>
+                        <p><strong>Context:</strong> Network conditions can reveal user context, like mobile vs. desktop usage.</p>
+                        <p><strong>Information:</strong> <code>navigator.connection</code> provides effective type (e.g., <code>4g</code>), downlink speed, round-trip time, and save-data mode. This reflects the user’s network environment.</p>
+                        <p><strong>Key Learning Point:</strong> Network info adds environmental context to fingerprints, distinguishing connection types and conditions.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 34: Hardware Concurrency -->
+            <div class="slide">
+                <div class="slide-content">
+                    <h1>Hardware Concurrency</h1>
+                    <h2>CPU cores</h2>
+                    <p><strong>Process:</strong> Retrieved from <code>navigator.hardwareConcurrency</code>.</p>
+                    <p><strong>Purpose:</strong> Indicates processing power.</p>
+                    <div class="narration">
+                        <h3>Narration</h3>
+                        <p><strong>Context:</strong> CPU capabilities are a strong indicator of device performance.</p>
+                        <p><strong>Information:</strong> <code>navigator.hardwareConcurrency</code> returns the number of logical CPU cores, like <code>8</code>. This distinguishes high-performance devices from lower-end ones.</p>
+                        <p><strong>Key Learning Point:</strong> Hardware concurrency provides a clear measure of device processing power for fingerprinting.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 35: Device Memory -->
+            <div class="slide">
+                <div class="slide-content">
+                    <h1>Device Memory</h1>
+                    <h2>RAM amount</h2>
+                    <p><strong>Process:</strong> Obtained from <code>navigator.deviceMemory</code>.</p>
+                    <p><strong>Purpose:</strong> Device capability insight.</p>
+                    <div class="narration">
+                        <h3>Narration</h3>
+                        <p><strong>Context:</strong> RAM availability reflects device quality and performance.</p>
+                        <p><strong>Information:</strong> <code>navigator.deviceMemory</code> returns approximate RAM in gigabytes, like <code>4</code>. It’s a coarse but useful indicator of device capability.</p>
+                        <p><strong>Key Learning Point:</strong> Device memory adds a performance-based attribute to enhance fingerprinting accuracy.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 36: Permissions -->
+            <div class="slide">
+                <div class="slide-content">
+                    <h1>Permissions</h1>
+                    <h2>Geolocation, notifications</h2>
+                    <p><strong>Process:</strong> Queried via <code>navigator.permissions.query()</code>.</p>
+                    <p><strong>Purpose:</strong> Reflects privacy settings.</p>
+                    <div class="narration">
+                        <h3>Narration</h3>
+                        <p><strong>Context:</strong> User-configured permissions reveal privacy preferences.</p>
+                        <p><strong>Information:</strong> <code>navigator.permissions.query()</code> checks states for geolocation and notifications, returning <code>granted</code>, <code>denied</code>, or <code>prompt</code>. This reflects user choices.</p>
+                        <p><strong>Key Learning Point:</strong> Permissions add a behavioral layer to fingerprinting, showing user privacy settings.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 37: Storage Quota/Usage -->
+            <div class="slide">
+                <div class="slide-content">
+                    <h1>Storage Quota/Usage</h1>
+                    <h2>Browser storage</h2>
+                    <p><strong>Process:</strong> Estimated via <code>navigator.storage.estimate()</code>.</p>
+                    <p><strong>Purpose:</strong> Indicates storage constraints.</p>
+                    <div class="narration">
+                        <h3>Narration</h3>
+                        <p><strong>Context:</strong> Browser storage limits can vary by device and browser settings.</p>
+                        <p><strong>Information:</strong> <code>navigator.storage.estimate()</code> returns the total quota and current usage, like <code>quota: 200GB, usage: 5GB</code>. This reflects storage availability and usage patterns.</p>
+                        <p><strong>Key Learning Point:</strong> Storage data provides insight into device and browser storage constraints, aiding fingerprinting.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 38: WebRTC Enabled -->
+            <div class="slide">
+                <div class="slide-content">
+                    <h1>WebRTC Enabled</h1>
+                    <h2>Real-time communication</h2>
+                    <p><strong>Process:</strong> Checks <code>RTCPeerConnection</code>.</p>
+                    <p><strong>Purpose:</strong> Indicates WebRTC support.</p>
+                    <div class="narration">
+                        <h3>Narration</h3>
+                        <p><strong>Context:</strong> WebRTC is used for real-time communication but can be disabled for privacy.</p>
+                        <p><strong>Information:</strong> The presence of <code>RTCPeerConnection</code> indicates WebRTC support, returning <code>true</code> or <code>false</code>. This reflects browser configuration and user privacy choices.</p>
+                        <p><strong>Key Learning Point:</strong> WebRTC status adds a configuration-based attribute to fingerprinting, reflecting privacy settings.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 39: Conclusion -->
+            <div class="slide intro-slide">
+                <div class="slide-content">
+                    <h1>Conclusion</h1>
+                    <p>Browser fingerprinting creates unique device signatures using diverse attributes. Understanding it aids in addressing privacy and tracking concerns.</p>
+                    <p>Try fingerprinting to explore your device’s digital signature!</p>
+                    <div class="narration">
+                        <h3>Narration</h3>
+                        <p><strong>Context:</strong> Browser fingerprinting is a complex but critical topic in today’s privacy landscape.</p>
+                        <p><strong>Information:</strong> By combining attributes like screen size, fonts, and hardware details, fingerprinting creates a unique device profile. This presentation has covered the key attributes and processes, highlighting their role in tracking. Users can explore their own fingerprints to understand their digital exposure.</p>
+                        <p><strong>Key Learning Point:</strong> Understanding fingerprinting empowers users and developers to make informed decisions about privacy and tracking mitigation.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Navigation Buttons -->
+            <div class="nav-buttons">
+                <button class="nav-button" onclick="prevSlide()">❮</button>
+                <button class="nav-button" onclick="nextSlide()">❯</button>
+            </div>
+
+            <!-- Progress Indicator -->
+            <div class="progress" id="progress">Slide 1 of 40</div>
+        </div>
+    </div>
+
+    <script>
+        let currentSlide = 0;
+        const slides = document.querySelectorAll('.slide');
+        const thumbnails = document.querySelectorAll('.thumbnail');
+        const totalSlides = slides.length;
+
+        function showSlide(index) {
+            slides.forEach((slide, i) => {
+                slide.classList.remove('active', 'exit');
+                if (i === index) {
+                    slide.classList.add('active');
+                } else if (i === currentSlide) {
+                    slide.classList.add('exit');
+                }
+            });
+            thumbnails.forEach((thumb, i) => {
+                thumb.classList.toggle('active', i === index);
+            });
+            document.getElementById('progress').textContent = `Slide ${index + 1} of ${totalSlides}`;
+            updateButtons();
+        }
+
+        function nextSlide() {
+            if (currentSlide < totalSlides - 1) {
+                currentSlide++;
+                showSlide(currentSlide);
+            }
+        }
+
+        function prevSlide() {
+            if (currentSlide > 0) {
+                currentSlide--;
+                showSlide(currentSlide);
+            }
+        }
+
+        function updateButtons() {
+            const prevButton = document.querySelector('.nav-button[onclick="prevSlide()"]');
+            const nextButton = document.querySelector('.nav-button[onclick="nextSlide()"]');
+            prevButton.disabled = currentSlide === 0;
+            nextButton.disabled = currentSlide === totalSlides - 1;
+        }
+
+        thumbnails.forEach(thumb => {
+            thumb.addEventListener('click', () => {
+                currentSlide = parseInt(thumb.dataset.slide);
+                showSlide(currentSlide);
+            });
+        });
+
+        // Initialize
+        showSlide(currentSlide);
+    </script>
+</body>
+</html>

@@ -1,0 +1,614 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Browser Fingerprinting</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            line-height: 1.6;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        #fingerprintData {
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            background-color: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .attribute {
+            margin-bottom: 12px;
+            padding: 8px;
+            border-bottom: 1px solid #eee;
+        }
+        .attribute strong {
+            display: inline-block;
+            width: 250px;
+            color: #444;
+        }
+        .controls {
+            text-align: center;
+            margin: 20px 0;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 0 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .timestamp {
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+        .fingerprint-hash {
+            text-align: center;
+            font-family: monospace;
+            color: #d63384;
+            margin: 10px 0;
+        }
+        .fingerprint-hash-no-timestamp {
+            text-align: center;
+            font-family: monospace;
+            color: #28a745;
+            margin: 10px 0;
+        }
+        .error {
+            color: #dc3545;
+            text-align: center;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Browser Fingerprint</h1>
+    <div class="controls">
+        <button onclick="gatherFingerprint()">Generate Fingerprint (With Timestamp)</button>
+        <button onclick="gatherFingerprintNoTimestamp()">Generate Fingerprint (No Timestamp)</button>
+        <button onclick="downloadFingerprint()">Download as JSON</button>
+    </div>
+    <div class="timestamp" id="timestamp"></div>
+    <div class="fingerprint-hash" id="fingerprintHash"></div>
+    <div class="fingerprint-hash-no-timestamp" id="fingerprintHashNoTimestamp"></div>
+    <div id="errorMessage" class="error"></div>
+    <div id="fingerprintData"></div>
+
+    <script>
+        // Simple hash function for fingerprint comparison
+        function simpleHash(str) {
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) {
+                const char = str.charCodeAt(i);
+                hash = ((hash << 5) - hash) + char;
+                hash = hash & hash;
+            }
+            return hash.toString(16);
+        }
+
+        // Download fingerprint as JSON
+        function downloadFingerprint() {
+            const data = window.currentFingerprintData;
+            if (!data) {
+                alert('No fingerprint data available. Please generate a fingerprint first.');
+                return;
+            }
+            const json = JSON.stringify(data, null, 2);
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `fingerprint_${new Date().toISOString()}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        async function displayFingerprint(data, includeTimestamp) {
+            const container = document.getElementById('fingerprintData');
+            const errorMessage = document.getElementById('errorMessage');
+            const timestamp = document.getElementById('timestamp');
+            const fingerprintHash = document.getElementById('fingerprintHash');
+            const fingerprintHashNoTimestamp = document.getElementById('fingerprintHashNoTimestamp');
+            container.innerHTML = '';
+            errorMessage.innerHTML = '';
+            timestamp.innerHTML = '';
+            fingerprintHash.innerHTML = '';
+            fingerprintHashNoTimestamp.innerHTML = '';
+
+            try {
+                // Store data for download
+                window.currentFingerprintData = data;
+
+                // Generate hash
+                const dataString = JSON.stringify(data);
+                const hash = simpleHash(dataString);
+                if (includeTimestamp) {
+                    fingerprintHash.innerHTML = `Fingerprint Hash (With Timestamp): ${hash}`;
+                    timestamp.innerHTML = `Generated: ${new Date(data.timestamp).toLocaleString()}`;
+                } else {
+                    fingerprintHashNoTimestamp.innerHTML = `Fingerprint Hash (No Timestamp): ${hash}`;
+                    timestamp.innerHTML = `Generated: ${new Date().toLocaleString()} (Timestamp excluded from data)`;
+                }
+
+                // Display Data
+                for (const [key, value] of Object.entries(data)) {
+                    const div = document.createElement('div');
+                    div.className = 'attribute';
+                    div.innerHTML = `<strong>${key.replace(/([A-Z])/g, ' $1').trim()}:</strong> ${
+                        typeof value === 'object' ? JSON.stringify(value, null, 2).replace(/\n/g, '<br>') : value
+                    }`;
+                    container.appendChild(div);
+                }
+            } catch (error) {
+                errorMessage.innerHTML = `Error displaying fingerprint: ${error.message}`;
+            }
+        }
+
+        async function gatherFingerprint() {
+            const container = document.getElementById('fingerprintData');
+            const errorMessage = document.getElementById('errorMessage');
+            container.innerHTML = '';
+            errorMessage.innerHTML = '';
+
+            try {
+                const data = {};
+                data.timestamp = new Date().toISOString();
+
+                // Basic Browser Information
+                data.userAgent = navigator.userAgent;
+                data.appVersion = navigator.appVersion;
+                data.platform = navigator.platform;
+                data.language = navigator.language || navigator.userLanguage;
+                data.languages = navigator.languages ? navigator.languages.join(', ') : 'Not available';
+                data.vendor = navigator.vendor;
+                data.product = navigator.product;
+                data.productSub = navigator.productSub;
+                data.cookieEnabled = navigator.cookieEnabled;
+                data.doNotTrack = navigator.doNotTrack || navigator.msDoNotTrack || 'Not set';
+                data.maxTouchPoints = navigator.maxTouchPoints || 0;
+
+                // Screen Information
+                data.screenWidth = screen.width;
+                data.screenHeight = screen.height;
+                data.availableWidth = screen.availWidth;
+                data.availableHeight = screen.availHeight;
+                data.colorDepth = screen.colorDepth;
+                data.pixelDepth = screen.pixelDepth;
+                data.orientation = screen.orientation ? screen.orientation.type : 'Not available';
+
+                // Window Information
+                data.innerWidth = window.innerWidth;
+                data.innerHeight = window.innerHeight;
+                data.outerWidth = window.outerWidth;
+                data.outerHeight = window.outerHeight;
+                data.devicePixelRatio = window.devicePixelRatio;
+
+                // Timezone Information
+                data.timezoneOffset = new Date().getTimezoneOffset();
+                data.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+                // Plugins
+                try {
+                    data.plugins = Array.from(navigator.plugins).map(p => ({
+                        name: p.name,
+                        description: p.description,
+                        filename: p.filename,
+                        version: p.version
+                    }));
+                } catch (e) {
+                    data.plugins = 'Not accessible';
+                }
+
+                // Mime Types
+                try {
+                    data.mimeTypes = Array.from(navigator.mimeTypes).map(m => m.type).join(', ');
+                } catch (e) {
+                    data.mimeTypes = 'Not accessible';
+                }
+
+                // Fonts
+                const fonts = [
+                    'Arial', 'Helvetica', 'Times New Roman', 'Courier New', 'Verdana',
+                    'Georgia', 'Palatino', 'Garamond', 'Bookman', 'Comic Sans MS',
+                    'Trebuchet MS', 'Arial Black', 'Impact'
+                ];
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                ctx.font = '72px monospace';
+                const defaultWidth = ctx.measureText('mmmmmmmmmm').width;
+                data.fonts = fonts.filter(font => {
+                    ctx.font = `72px "${font}", monospace`;
+                    return ctx.measureText('mmmmmmmmmm').width !== defaultWidth;
+                }).join(', ');
+
+                // Canvas Fingerprint
+                try {
+                    ctx.textBaseline = 'top';
+                    ctx.font = '32px Arial';
+                    ctx.fillStyle = '#f60';
+                    ctx.fillRect(125, 1, 62, 20);
+                    ctx.fillStyle = '#069';
+                    ctx.fillText('Hello, World!', 2, 15);
+                    ctx.fillStyle = 'rgba(102, 204, 0, 0.7)';
+                    ctx.fillText('Hello, World!', 4, 17);
+                    data.canvasFingerprint = canvas.toDataURL();
+                } catch (e) {
+                    data.canvasFingerprint = 'Not accessible';
+                }
+
+                // WebGL Fingerprint
+                try {
+                    const gl = document.createElement('canvas').getContext('webgl');
+                    if (gl) {
+                        data.webglVendor = gl.getParameter(gl.VENDOR);
+                        data.webglRenderer = gl.getParameter(gl.RENDERER);
+                        data.webglVersion = gl.getParameter(gl.VERSION);
+                        const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+                        if (debugInfo) {
+                            data.webglUnmaskedVendor = gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL);
+                            data.webglUnmaskedRenderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
+                        }
+                    } else {
+                        data.webglVendor = 'Not supported';
+                    }
+                } catch (e) {
+                    data.webglVendor = 'Not accessible';
+                }
+
+                // Audio Fingerprint
+                try {
+                    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    const oscillator = audioCtx.createOscillator();
+                    oscillator.type = 'sine';
+                    oscillator.frequency.setValueAtTime(440, audioCtx.currentTime);
+                    const analyser = audioCtx.createAnalyser();
+                    oscillator.connect(analyser);
+                    analyser.connect(audioCtx.destination);
+                    const bufferLength = analyser.frequencyBinCount;
+                    const dataArray = new Uint8Array(bufferLength);
+                    analyser.getByteFrequencyData(dataArray);
+                    data.audioFingerprint = Array.from(dataArray).slice(0, 10).join(',');
+                    oscillator.start();
+                    setTimeout(() => oscillator.stop(), 100);
+                    await audioCtx.close();
+                } catch (e) {
+                    data.audioFingerprint = 'Not accessible';
+                }
+
+                // Battery Information
+                try {
+                    if ('getBattery' in navigator) {
+                        const battery = await navigator.getBattery();
+                        data.batteryLevel = battery.level * 100 + '%';
+                        data.batteryCharging = battery.charging;
+                        data.batteryChargingTime = battery.chargingTime || 'Unknown';
+                        data.batteryDischargingTime = battery.dischargingTime || 'Unknown';
+                    } else {
+                        data.batteryLevel = 'Not supported';
+                    }
+                } catch (e) {
+                    data.batteryLevel = 'Not accessible';
+                }
+
+                // Network Information
+                try {
+                    if ('connection' in navigator) {
+                        data.connectionType = navigator.connection.effectiveType;
+                        data.downlink = navigator.connection.downlink;
+                        data.rtt = navigator.connection.rtt;
+                        data.saveData = navigator.connection.saveData;
+                    } else {
+                        data.connectionType = 'Not supported';
+                    }
+                } catch (e) {
+                    data.connectionType = 'Not accessible';
+                }
+
+                // Hardware Concurrency and Memory
+                data.hardwareConcurrency = navigator.hardwareConcurrency || 'Not available';
+                data.deviceMemory = navigator.deviceMemory || 'Not available';
+
+                // Permissions
+                try {
+                    const geoPermission = await navigator.permissions.query({ name: 'geolocation' });
+                    data.geolocationPermission = geoPermission.state;
+                    const notificationsPermission = await navigator.permissions.query({ name: 'notifications' });
+                    data.notificationsPermission = notificationsPermission.state;
+                } catch (e) {
+                    data.geolocationPermission = 'Not accessible';
+                }
+
+                // Storage Quota
+                try {
+                    if ('storage' in navigator && 'estimate' in navigator.storage) {
+                        const estimate = await navigator.storage.estimate();
+                        data.storageQuota = estimate.quota;
+                        data.storageUsage = estimate.usage;
+                    } else {
+                        data.storageQuota = 'Not supported';
+                    }
+                } catch (e) {
+                    data.storageQuota = 'Not accessible';
+                }
+
+                // WebRTC
+                try {
+                    const RTCPeerConnection = window.RTCPeerConnection || window.webkitRTCPeerConnection || window.mozRTCPeerConnection;
+                    if (RTCPeerConnection) {
+                        data.webRTCEnabled = true;
+                    } else {
+                        data.webRTCEnabled = false;
+                    }
+                } catch (e) {
+                    data.webRTCEnabled = 'Not accessible';
+                }
+
+                await displayFingerprint(data, true);
+            } catch (error) {
+                errorMessage.innerHTML = `Error generating fingerprint: ${error.message}`;
+            }
+        }
+
+        async function gatherFingerprintNoTimestamp() {
+            const container = document.getElementById('fingerprintData');
+            const errorMessage = document.getElementById('errorMessage');
+            container.innerHTML = '';
+            errorMessage.innerHTML = '';
+
+            try {
+                const data = {};
+
+                // Basic Browser Information
+                data.userAgent = navigator.userAgent;
+                data.appVersion = navigator.appVersion;
+                data.platform = navigator.platform;
+                data.language = navigator.language || navigator.userLanguage;
+                data.languages = navigator.languages ? navigator.languages.join(', ') : 'Not available';
+                data.vendor = navigator.vendor;
+                data.product = navigator.product;
+                data.productSub = navigator.productSub;
+                data.cookieEnabled = navigator.cookieEnabled;
+                data.doNotTrack = navigator.doNotTrack || navigator.msDoNotTrack || 'Not set';
+                data.maxTouchPoints = navigator.maxTouchPoints || 0;
+
+                // Screen Information
+                data.screenWidth = screen.width;
+                data.screenHeight = screen.height;
+                data.availableWidth = screen.availWidth;
+                data.availableHeight = screen.availHeight;
+                data.colorDepth = screen.colorDepth;
+                data.pixelDepth = screen.pixelDepth;
+                data.orientation = screen.orientation ? screen.orientation.type : 'Not available';
+
+                // Window Information
+                data.innerWidth = window.innerWidth;
+                data.innerHeight = window.innerHeight;
+                data.outerWidth = window.outerWidth;
+                data.outerHeight = window.outerHeight;
+                data.devicePixelRatio = window.devicePixelRatio;
+
+                // Timezone Information
+                data.timezoneOffset = new Date().getTimezoneOffset();
+                data.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+                // Plugins
+                try {
+                    data.plugins = Array.from(navigator.plugins).map(p => ({
+                        name: p.name,
+                        description: p.description,
+                        filename: p.filename,
+                        version: p.version
+                    }));
+                } catch (e) {
+                    data.plugins = 'Not accessible';
+                }
+
+                // Mime Types
+                try {
+                    data.mimeTypes = Array.from(navigator.mimeTypes).map(m => m.type).join(', ');
+                } catch (e) {
+                    data.mimeTypes = 'Not accessible';
+                }
+
+                // Fonts
+                const fonts = [
+                    'Arial', 'Helvetica', 'Times New Roman', 'Courier New', 'Verdana',
+                    'Georgia', 'Palatino', 'Garamond', 'Bookman', 'Comic Sans MS',
+                    'Trebuchet MS', 'Arial Black', 'Impact'
+                ];
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                ctx.font = '72px monospace';
+                const defaultWidth = ctx.measureText('mmmmmmmmmm').width;
+                data.fonts = fonts.filter(font => {
+                    ctx.font = `72px "${font}", monospace`;
+                    return ctx.measureText('mmmmmmmmmm').width !== defaultWidth;
+                }).join(', ');
+
+                // Canvas Fingerprint
+                try {
+                    ctx.textBaseline = 'top';
+                    ctx.font = '32px Arial';
+                    ctx.fillStyle = '#f60';
+                    ctx.fillRect(125, 1, 62, 20);
+                    ctx.fillStyle = '#069';
+                    ctx.fillText('Hello, World!', 2, 15);
+                    ctx.fillStyle = 'rgba(102, 204, 0, 0.7)';
+                    ctx.fillText('Hello, World!', 4, 17);
+                    data.canvasFingerprint = canvas.toDataURL();
+                } catch (e) {
+                    data.canvasFingerprint = 'Not accessible';
+                }
+
+                // WebGL Fingerprint
+                try {
+                    const gl = document.createElement('canvas').getContext('webgl');
+                    if (gl) {
+                        data.webglVendor = gl.getParameter(gl.VENDOR);
+                        data.webglRenderer = gl.getParameter(gl.RENDERER);
+                        data.webglVersion = gl.getParameter(gl.VERSION);
+                        const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+                        if (debugInfo) {
+                            data.webglUnmaskedVendor = gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL);
+                            data.webglUnmaskedRenderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
+                        }
+                    } else {
+                        data.webglVendor = 'Not supported';
+                    }
+                } catch (e) {
+                    data.webglVendor = 'Not accessible';
+                }
+
+                // Audio Fingerprint
+                try {
+                    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    const oscillator = audioCtx.createOscillator();
+                    oscillator.type = 'sine';
+                    oscillator.frequency.setValueAtTime(440, audioCtx.currentTime);
+                    const analyser = audioCtx.createAnalyser();
+                    oscillator.connect(analyser);
+                    analyser.connect(audioCtx.destination);
+                    const bufferLength = analyser.frequencyBinCount;
+                    const dataArray = new Uint8Array(bufferLength);
+                    analyser.getByteFrequencyData(dataArray);
+                    data.audioFingerprint = Array.from(dataArray).slice(0, 10).join(',');
+                    oscillator.start();
+                    setTimeout(() => oscillator.stop(), 100);
+                    await audioCtx.close();
+                } catch (e) {
+                    data.audioFingerprint = 'Not accessible';
+                }
+
+                // Battery Information
+                try {
+                    if ('getBattery' in navigator) {
+                        const battery = await navigator.getBattery();
+                        data.batteryLevel = battery.level * 100 + '%';
+                        data.batteryCharging = battery.charging;
+                        data.batteryChargingTime = battery.chargingTime || 'Unknown';
+                        data.batteryDischargingTime = battery.dischargingTime || 'Unknown';
+                    } else {
+                        data.batteryLevel = 'Not supported';
+                    }
+                } catch (e) {
+                    data.batteryLevel = 'Not accessible';
+                }
+
+                // Network Information
+                try {
+                    if ('connection' in navigator) {
+                        data.connectionType = navigator.connection.effectiveType;
+                        data.downlink = navigator.connection.downlink;
+                        data.rtt = navigator.connection.rtt;
+                        data.saveData = navigator.connection.saveData;
+                    } else {
+                        data.connectionType = 'Not supported';
+                    }
+                } catch (e) {
+                    data.connectionType = 'Not accessible';
+                }
+
+                // Hardware Concurrency and Memory
+                data.hardwareConcurrency = navigator.hardwareConcurrency || 'Not available';
+                data.deviceMemory = navigator.deviceMemory || 'Not available';
+
+                // Permissions
+                try {
+                    const geoPermission = await navigator.permissions.query({ name: 'geolocation' });
+                    data.geolocationPermission = geoPermission.state;
+                    const notificationsPermission = await navigator.permissions.query({ name: 'notifications' });
+                    data.notificationsPermission = notificationsPermission.state;
+                } catch (e) {
+                    data.geolocationPermission = 'Not accessible';
+                }
+
+                // Storage Quota
+                try {
+                    if ('storage' in navigator && 'estimate' in navigator.storage) {
+                        const estimate = await navigator.storage.estimate();
+                        data.storageQuota = estimate.quota;
+                        data.storageUsage = estimate.usage;
+                    } else {
+                        data.storageQuota = 'Not supported';
+                    }
+                } catch (e) {
+                    data.storageQuota = 'Not accessible';
+                }
+
+                // WebRTC
+                try {
+                    const RTCPeerConnection = window.RTCPeerConnection || window.webkitRTCPeerConnection || window.mozRTCPeerConnection;
+                    if (RTCPeerConnection) {
+                        data.webRTCEnabled = true;
+                    } else {
+                        data.webRTCEnabled = false;
+                    }
+                } catch (e) {
+                    data.webRTCEnabled = 'Not accessible';
+                }
+
+                await displayFingerprint(data, false);
+            } catch (error) {
+                errorMessage.innerHTML = `Error generating fingerprint: ${error.message}`;
+            }
+        }
+
+        // Run fingerprinting on page load (with timestamp)
+        window.onload = gatherFingerprint;
+    </script>
+</body>
+</html>
